@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-change-mime-type",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "change mime type of a file",
   "keywords": [
     "n8n-community-node-package"
@@ -29,10 +29,10 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/ChangeMimeTypeApi.credentials.ts"
+      "dist/credentials/ChangeMimeTypeApi.credentials.d.ts"
     ],
     "nodes": [
-      "dist/nodes/ChangeMimeType/ChangeMimeType.node.js"
+      "dist/nodes/ChangeMimeType/ChangeMimeType.node.d.js"
     ]
   },
   "devDependencies": {
