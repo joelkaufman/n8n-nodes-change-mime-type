@@ -5,8 +5,8 @@ import {
 	INodeProperties,
 } from 'n8n-workflow';
 
-export class ExampleCredentialsApi implements ICredentialType {
-	name = 'exampleCredentialsApi';
+export class ChangeMimeTypeApi implements ICredentialType {
+	name = 'changeMimeTypeApi';
 	displayName = 'Example Credentials API';
 
 	documentationUrl = 'https://your-docs-url';

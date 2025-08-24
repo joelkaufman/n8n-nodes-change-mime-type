@@ -4,7 +4,7 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeOperationError, NodeConnectionType } from 'n8n-workflow';
 
 export class ChangeMimeType implements INodeType {
 	description: INodeTypeDescription = {
@@ -17,8 +17,9 @@ export class ChangeMimeType implements INodeType {
 		defaults: {
 			name: 'Change MIME Type',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		// ✅ Use enum instead of string literals
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		properties: [
 			{
 				displayName: 'Binary Property',
@@ -26,8 +27,7 @@ export class ChangeMimeType implements INodeType {
 				type: 'string',
 				default: 'data',
 				placeholder: 'e.g. data or file',
-				description:
-					'Name of the binary property on each item to modify (e.g. "data")',
+				description: 'Name of the binary property on each item to modify (e.g. "data")',
 				required: true,
 			},
 			{
@@ -63,23 +63,9 @@ export class ChangeMimeType implements INodeType {
 				type: 'options',
 				default: 'smart',
 				options: [
-					{
-						name: 'Do Not Touch Filename',
-						value: 'leave',
-						description: 'Only change mimeType; keep fileName as-is',
-					},
-					{
-						name: 'Smart Replace Extension',
-						value: 'smart',
-						description:
-							'If fileName exists and has an extension, replace it; otherwise append one',
-					},
-					{
-						name: 'Force Replace/Append',
-						value: 'force',
-						description:
-							'Always replace/append extension on fileName if updateExtension is enabled',
-					},
+					{ name: 'Do Not Touch Filename', value: 'leave' },
+					{ name: 'Smart Replace Extension', value: 'smart' },
+					{ name: 'Force Replace/Append', value: 'force' },
 				],
 				displayOptions: {
 					show: {
@@ -88,103 +74,86 @@ export class ChangeMimeType implements INodeType {
 				},
 			},
 			{
+				
 				displayName: 'Skip Missing Binary (Do Not Error)',
 				name: 'skipMissing',
 				type: 'boolean',
 				default: false,
-				description:
-					"If enabled, items without the binary property won't throw; they'll pass through unchanged",
+				description: 'Whether to allow items without the binary property to pass through unchanged instead of throwing an error',
+			
+
 			},
 		],
 	};
 
 	async execute(this: IExecuteFunctions) {
-		const items = this.getInputData();
-		const returnItems: INodeExecutionData[] = [];
+	const items = this.getInputData();
+	const out: INodeExecutionData[] = [];
 
-		for (let i = 0; i < items.length; i++) {
-			const item = { ...items[i] };
-			const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
-			const newMimeType = this.getNodeParameter('newMimeType', i) as string;
-			const updateExtension = this.getNodeParameter('updateExtension', i) as boolean;
-			const newExtensionRaw = (this.getNodeParameter('newExtension', i) as string) || '';
-			const filenameHandling = this.getNodeParameter('filenameHandling', i) as
-				| 'leave'
-				| 'smart'
-				| 'force';
-			const skipMissing = this.getNodeParameter('skipMissing', i) as boolean;
+	for (let i = 0; i < items.length; i++) {
+		const item = { ...items[i] };
+		const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+		const newMimeType = this.getNodeParameter('newMimeType', i) as string;
+		const updateExtension = this.getNodeParameter('updateExtension', i) as boolean;
+		const newExtensionRaw = (this.getNodeParameter('newExtension', i) as string) || '';
+		const filenameHandling = this.getNodeParameter('filenameHandling', i) as 'leave'|'smart'|'force';
+		const skipMissing = this.getNodeParameter('skipMissing', i) as boolean;
+		const newExtension = newExtensionRaw.replace(/^\./, '');
 
-			const newExtension = newExtensionRaw.replace(/^\./, ''); // strip leading dot if provided
-
-			// Ensure binary exists
-			const binary = item.binary?.[binaryPropertyName];
-			if (!binary) {
-				if (skipMissing) {
-					returnItems.push(item);
-					continue;
-				}
-				throw new NodeOperationError(
-					this.getNode(),
-					`Item ${i} is missing binary property "${binaryPropertyName}".`,
-				);
+		const binary = item.binary?.[binaryPropertyName];
+		if (!binary) {
+			if (skipMissing) {
+				out.push(item);
+				continue;
 			}
-
-			// Clone binary object safely
-			const cloned = this.helpers.cloneBinaryData(binary);
-
-			// Update MIME type
-			cloned.mimeType = newMimeType;
-
-			// Optionally update extension metadata and filename
-			if (updateExtension) {
-				if (!newExtension) {
-					throw new NodeOperationError(
-						this.getNode(),
-						'When "Also Update File Extension" is enabled, "New Extension" must be provided.',
-					);
-				}
-
-				// Update binary.fileExtension
-				cloned.fileExtension = newExtension;
-
-				// Optionally update fileName
-				if (filenameHandling !== 'leave') {
-					const oldName = cloned.fileName || '';
-					const dotExt = `.${newExtension}`;
-
-					let base = oldName;
-					if (filenameHandling === 'smart') {
-						// Replace existing extension if any, else append
-						if (oldName && /\.[A-Za-z0-9]+$/.test(oldName)) {
-							base = oldName.replace(/\.[A-Za-z0-9]+$/, dotExt);
-						} else if (oldName) {
-							base = oldName + dotExt;
-						} else {
-							// No existing name: create a sensible default
-							base = `file${dotExt}`;
-						}
-					} else {
-						// force
-						if (oldName) {
-							base = oldName.replace(/\.[A-Za-z0-9]+$/, '');
-							// remove trailing dot if we stripped a non-existent extension
-							base = base.replace(/\.$/, '');
-							base = base + dotExt;
-						} else {
-							base = `file${dotExt}`;
-						}
-					}
-					cloned.fileName = base;
-				}
-			}
-
-			// Write back
-			item.binary = item.binary ?? {};
-			item.binary[binaryPropertyName] = cloned;
-
-			returnItems.push(item);
+			throw new NodeOperationError(this.getNode(), `Item ${i} is missing binary property "${binaryPropertyName}".`);
 		}
 
-		return this.prepareOutputData(returnItems);
+		// Determine new filename if we’re changing/adding an extension
+		let nextFileName = binary.fileName ?? '';
+		if (updateExtension) {
+			if (!newExtension) {
+				throw new NodeOperationError(this.getNode(), 'When "Also Update File Extension" is enabled, "New Extension" must be provided.');
+			}
+			const dotExt = `.${newExtension}`;
+			if (filenameHandling === 'smart') {
+				if (nextFileName && /\.[A-Za-z0-9]+$/.test(nextFileName)) {
+					nextFileName = nextFileName.replace(/\.[A-Za-z0-9]+$/, dotExt);
+				} else if (nextFileName) {
+					nextFileName = nextFileName + dotExt;
+				} else {
+					nextFileName = `file${dotExt}`;
+				}
+			} else if (filenameHandling === 'force') {
+				if (nextFileName) {
+					nextFileName = nextFileName.replace(/\.[A-Za-z0-9]+$/, '').replace(/\.$/, '') + dotExt;
+				} else {
+					nextFileName = `file${dotExt}`;
+				}
+			}
+		}
+
+		// Read the original bytes and re-prepare with new metadata
+		const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
+		const prepared = await this.helpers.prepareBinaryData(
+			buffer,
+			updateExtension ? nextFileName || undefined : binary.fileName, // keep original name unless we changed it
+			newMimeType || binary.mimeType, // set new mime type
+		);
+
+		// Preserve/override extra fields
+		if (updateExtension && newExtension) prepared.fileExtension = newExtension;
+		// keep other metadata you care about
+		if (binary.fileSize) prepared.fileSize = binary.fileSize;
+		if (binary.directory) prepared.directory = binary.directory;
+
+		item.binary = item.binary ?? {};
+		item.binary[binaryPropertyName] = prepared;
+
+		out.push(item);
 	}
+
+	return this.prepareOutputData(out);
+}
+
 }
